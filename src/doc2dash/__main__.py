@@ -3,10 +3,16 @@ import importlib
 import logging
 import logging.config
 import os
+import platform
 import plistlib
 import shutil
 import sqlite3
-import platform
+
+from io import BytesIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from urllib.request import Request, urlopen
+from zipfile import ZipFile
 
 import attr
 import click
@@ -19,7 +25,8 @@ log = logging.getLogger(__name__)
 
 DEFAULT_DOCSET_PATH = os.path.expanduser(
     "~/Library/Application Support/doc2dash/DocSets"
-    if platform.system() is "Darwin" else "~/.local/share/Zeal/Zeal/docsets"
+    if platform.system() is "Darwin"
+    else "~/.local/share/Zeal/Zeal/docsets"
 )
 
 PNG_HEADER = b"\x89PNG\r\n\x1a\n"
@@ -68,9 +75,9 @@ IMPORTABLE = ImportableType()
 @click.command()
 @click.argument(
     "source",
-    type=click.Path(
-        exists=True, file_okay=False, readable=True, resolve_path=True
-    ),
+    # type=click.Path(
+    #     exists=True, file_okay=False, readable=True, resolve_path=True
+    # ),
 )
 @click.option("--name", "-n", help="Name docset explicitly.", metavar="NAME")
 @click.option(
@@ -176,6 +183,7 @@ def main(
     else:
         icon_data = None
 
+    source = resolver_source_or_archive_url(source)
     source, dest, name = setup_paths(
         source,
         destination,
@@ -361,6 +369,25 @@ def read_plist(full_path):
 def write_plist(plist, full_path):
     with open(full_path, "wb") as fp:
         plistlib.dump(plist, fp)
+
+
+def extract_archive_docs(source):
+    req = Request(source, headers={"User-Agent": "Mozilla/5.0"})
+    res = urlopen(req)
+    z = ZipFile(BytesIO(res.read()))
+    temp_source_docs = Path(TemporaryDirectory().name)
+
+    z.extractall(temp_source_docs)
+
+    docset_archive_folder = os.listdir(temp_source_docs)[0]
+
+    return temp_source_docs / docset_archive_folder
+
+
+def resolver_source_or_archive_url(source):
+    if source.startswith("https://") or source.startswith("http://"):
+        source = extract_archive_docs(source)
+    return str(Path(source).resolve())
 
 
 if __name__ == "__main__":
