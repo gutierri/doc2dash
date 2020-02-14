@@ -6,6 +6,7 @@ import os
 import plistlib
 import shutil
 import sqlite3
+import platform
 
 import attr
 import click
@@ -18,7 +19,9 @@ log = logging.getLogger(__name__)
 
 DEFAULT_DOCSET_PATH = os.path.expanduser(
     "~/Library/Application Support/doc2dash/DocSets"
+    if platform.system() is "Darwin" else "~/.local/share/Zeal/Zeal/docsets"
 )
+
 PNG_HEADER = b"\x89PNG\r\n\x1a\n"
 
 
